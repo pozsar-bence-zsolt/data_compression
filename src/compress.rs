@@ -1,9 +1,8 @@
-use std::io::Write;
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::{BufReader, Write}};
 
 use bitstream_io::{BitRead, BitReader, LittleEndian};
 
-use crate::codetable::{CodeTable, LZWBase};
+use crate::codetable::CodeTable;
 
 pub fn compress(in_path: String, out_path: String) {
     let file = match File::open(in_path) {
@@ -31,8 +30,7 @@ pub fn compress(in_path: String, out_path: String) {
     let mut prev_vec: Vec<u8> = Vec::new();
     let mut bit_read: u8 = 0;
     let mut need_read: bool = true;
-    let mut end_file: bool = false;
-    let mut prev_value: u32 = 0;
+    let mut prev_value: u16 = 0;
     loop {
         if need_read {
             bit_read = match bit_reader.read::<8, u8>() {
@@ -41,40 +39,33 @@ pub fn compress(in_path: String, out_path: String) {
                     read_vec.push(bit_read);
                     bit_read
                 },
-                Err(_) => {
-                    end_file = true;
-                    0
-                }
+                Err(_) => break
             };
         }
 
-        if !end_file {
-            match dictionary.get_value(&read_vec) {
-                Some(value) => {
-                    need_read = true;
-                    prev_value = value;
-                },
-                None => {
-                    dictionary.put_value(&read_vec);
-                    write_output(&mut compressed_file, &prev_value);
-                    prev_vec.clear();
-                    read_vec.clear();
-                    read_vec.push(bit_read);
-                    need_read = false;
-                }
+        match dictionary.get_value(&read_vec) {
+            Some(value) => {
+                need_read = true;
+                prev_value = value;
+            },
+            None => {
+                dictionary.put_value(&read_vec);
+                write_output(&mut compressed_file, &prev_value);
+                prev_vec.clear();
+                read_vec.clear();
+                read_vec.push(bit_read);
+                need_read = false;
             }
-        } else {
-            write_output(&mut compressed_file, &prev_value);
-            break;
         }
     }
+
+    write_output(&mut compressed_file, &prev_value);
 }
 
-fn write_output(file: &mut File, encode: &u32) {
-    let buffer_bytes: [u8; 4] = encode.to_le_bytes();
-    let buffer_bytes_trunc: [u8; 3] = buffer_bytes[..3].try_into().unwrap();
+fn write_output(file: &mut File, encode: &u16) {
+    let buffer_bytes: [u8; 2] = encode.to_le_bytes();
 
-    match file.write(&buffer_bytes_trunc) {
+    match file.write(&buffer_bytes) {
         Ok(_) => {},
         Err(error) => {
             println!("{:?}", error)

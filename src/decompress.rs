@@ -2,7 +2,7 @@ use std::{fs::File, io::{BufReader, Write}};
 
 use bitstream_io::{BitRead, BitReader, LittleEndian};
 
-use crate::codetable::{CodeTable, LZWBase};
+use crate::codetable::CodeTable;
 
 pub fn decompress(in_path: String, out_path: String) {
     let compressed_file = match File::open(in_path) {
@@ -31,7 +31,7 @@ pub fn decompress(in_path: String, out_path: String) {
     let mut write_buffer: Vec<u8> = Vec::new();
 
     loop {
-        let read_value = match bit_reader.read::<24, u32>() {
+        let read_value = match bit_reader.read::<16, u16>() {
             Ok(bit_read) => bit_read,
             Err(_) => break,
         };
@@ -60,7 +60,7 @@ pub fn decompress(in_path: String, out_path: String) {
                     new_key.push(prev_vec[0]);
                     current_vec = new_key.clone();
                     dictionary.put_value(&current_vec);
-                    write_buffer.extend_from_slice(& current_vec.clone());
+                    write_buffer.extend_from_slice(&current_vec.clone());
                 }
 
                 prev_vec = current_vec.clone();
@@ -80,6 +80,7 @@ pub fn decompress(in_path: String, out_path: String) {
 }
 
 fn write_output(file: &mut File, decode: &Vec<u8>) {
+    // println!("File write: {:?}", decode);
     match file.write(&decode) {
         Ok(_) => {},
         Err(error) => panic!("{:?}", error)
